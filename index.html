@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Smart C Compiler by BRD</title>
+<title>C Compiler v7.3 (4-Key Cluster)</title>
 <!-- PrismJS -->
 <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
 <!-- JSDiff -->
@@ -190,7 +190,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 <body>
 
 <header>
-    <h1>Smart C Compiler <span class="badge">v1.0</span></h1>
+    <h1>C Compiler <span class="badge">v7.3</span></h1>
     <div style="font-size:12px; color:#4ade80; opacity: 0.8;">System Ready</div>
     <div class="controls">
         <button id="run_btn" class="btn-primary" onclick="runCode()">
@@ -301,12 +301,14 @@ int main() {
     const runBtn = document.getElementById('run_btn');
     const fixBtn = document.getElementById('fix_btn');
     
-    // --- KEY ROTATION SYSTEM ---
+    // --- KEY ROTATION SYSTEM (4 Keys) ---
     const _KEYS = [
         "AIzaSyAgZ8YtG6bDjXatgh1D8QzqfhRP8emvv5w",
-        "AIzaSyAr4eA0AzpVsdEAvJrAp96YZNqlLy0UgNE"
+        "AIzaSyAr4eA0AzpVsdEAvJrAp96YZNqlLy0UgNE",
+        "AIzaSyCC3AmWWXYVoKah1KVejgYK3dDg0q_yTcI",
+        "AIzaSyCzrlET6gzDWGWvlVaQAtQpvi7OVheUWZI"
     ];
-    let _keyIndex = 0; // Starts with Key 1
+    let _keyIndex = 0; 
 
     function getNextKey() {
         _keyIndex = (_keyIndex + 1) % _KEYS.length;
@@ -369,9 +371,11 @@ int main() {
         }
     }
 
-    // Function to handle API Call with Auto-Switch Retry
-    async function fetchFromGemini(prompt, isRetry = false) {
+    // Function to handle API Call with Multi-Key Rotation
+    async function fetchFromGemini(prompt, retryCount = 0) {
         const k = getCurrentKey();
+        
+        // Using Gemini 2.5 Flash as requested
         const URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${k}`;
         
         const response = await fetch(URL, {
@@ -383,14 +387,14 @@ int main() {
         });
 
         if (!response.ok) {
-            // Check for Rate Limit (429)
-            if (response.status === 429 && !isRetry) {
-                // Rate limit hit. Switch Key and Retry ONCE.
+            // Check for 429 (Quota) OR 403 (Permission)
+            // It will keep cycling through keys until it hits the limit of the array length
+            if ((response.status === 429 || response.status === 403) && retryCount < _KEYS.length) {
                 getNextKey(); 
-                outputDiv.innerHTML = `<div class='msg-ai'><span class='loader'>&#9960;</span>...switching keys & retrying</div>`;
-                return fetchFromGemini(prompt, true); // Recursive call
+                outputDiv.innerHTML = `<div class='msg-ai'><span class='loader'>&#9960;</span>...error ${response.status}. switching to key ${_keyIndex + 1} & retrying</div>`;
+                return fetchFromGemini(prompt, retryCount + 1); // Recursive call
             }
-            throw new Error(`API Status: ${response.status}`);
+            throw new Error(`API Status: ${response.status} (Model: 2.5-Flash)`);
         }
         
         return await response.json();
@@ -416,7 +420,6 @@ int main() {
         `;
 
         try {
-            // Use the smarter fetch function
             const data = await fetchFromGemini(prompt);
 
             const textResponse = data.candidates[0].content.parts[0].text;
