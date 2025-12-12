@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart C Compiler by BRD</title>
+<!-- PrismJS -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+<!-- JSDiff -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.1.0/diff.min.js"></script>
+
+<style>
+:root {
+    --bg-app: #121212;
+    --bg-panel: #1e1e1e;
+    --border: #333;
+    --primary: #3b82f6;
+    --primary-hover: #2563eb;
+    --accent: #a855f7;
+    --text-main: #e5e5e5;
+    --text-muted: #a3a3a3;
+    --font-mono: 'Fira Code', 'Consolas', monospace;
+    --font-sans: 'Inter', system-ui, sans-serif;
+    --diff-add: #064e3b;
+    --diff-add-text: #6ee7b7;
+    --diff-rem: #7f1d1d;
+    --diff-rem-text: #fca5a5;
+}
+body {
+    margin: 0;
+    padding: 0;
+    background-color: var(--bg-app);
+    color: var(--text-main);
+    font-family: var(--font-sans);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+header {
+    background-color: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    padding: 0 20px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+h1 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.badge {
+    font-size: 0.7rem;
+    background: var(--accent);
+    padding: 2px 8px;
+    border-radius: 12px;
+    color: white;
+}
+.controls { display: flex; gap: 12px; }
+button {
+    background-color: var(--bg-app);
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9rem;
+}
+button:hover:not(:disabled) { background-color: #2a2a2a; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary { background-color: var(--primary); border-color: var(--primary); color: white; }
+.btn-primary:hover:not(:disabled) { background-color: var(--primary-hover); }
+.btn-magic { border-color: var(--accent); color: #d8b4fe; }
+.btn-magic:hover:not(:disabled) { background-color: #3b0764; }
+
+.main-area { display: flex; flex: 1; overflow: hidden; }
+
+/* Left Panel: Editor */
+.editor-container { 
+    flex: 1; 
+    display: flex; 
+    flex-direction: column; 
+    border-right: 1px solid var(--border); 
+    background-color: var(--bg-app); 
+}
+.editor { 
+    flex: 1; 
+    font-family: var(--font-mono); 
+    font-size: 14px; 
+    line-height: 1.6; 
+    padding: 20px; 
+    overflow-y: auto; 
+    color: #d4d4d4; 
+    outline: none;
+}
+
+/* Right Panel */
+.right-panel {
+    flex: 1;
+    max-width: 45%;
+    display: flex;
+    flex-direction: column;
+    background-color: #0d0d0d;
+}
+
+.panel-section {
+    display: flex;
+    flex-direction: column;
+    border-bottom: 1px solid var(--border);
+}
+
+.panel-label { 
+    font-size: 0.75rem; 
+    text-transform: uppercase; 
+    letter-spacing: 0.05em; 
+    color: var(--text-muted); 
+    padding: 10px 15px; 
+    background-color: var(--bg-panel); 
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+}
+
+/* Output & Input */
+#output { 
+    font-family: var(--font-mono); 
+    font-size: 13px; 
+    color: #a3a3a3; 
+    white-space: pre-wrap;
+    overflow-y: auto; 
+    padding: 15px;
+    min-height: 200px;
+    max-height: 50vh;
+}
+
+.input-area { padding: 0; background: #000; }
+#std_input {
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: #fff;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    padding: 10px 15px;
+    resize: vertical;
+    min-height: 60px;
+    outline: none;
+    box-sizing: border-box;
+}
+#std_input::placeholder { color: #444; }
+
+/* Collapsible Diff */
+.collapsible-header { cursor: pointer; transition: background-color 0.2s; }
+.collapsible-header:hover { background-color: #252525; }
+.chevron { transition: transform 0.3s ease; }
+.chevron.open { transform: rotate(180deg); }
+.diff-wrapper { overflow: hidden; transition: max-height 0.3s ease-in-out; max-height: 0; }
+.diff-container { padding: 0; font-family: var(--font-mono); font-size: 12px; background-color: #0d0d0d; max-height: 300px; overflow-y: auto; }
+.diff-line { padding: 2px 15px; white-space: pre-wrap; border-bottom: 1px solid #1a1a1a; }
+.diff-added { background-color: var(--diff-add); color: var(--diff-add-text); }
+.diff-removed { background-color: var(--diff-rem); color: var(--diff-rem-text); text-decoration: line-through; opacity: 0.8; }
+.diff-unchanged { color: #555; }
+
+/* Utilities */
+.msg-error { color: #f87171; }
+.msg-success { color: #4ade80; }
+.msg-ai { color: #d8b4fe; }
+.loader { animation: spin 1s linear infinite; display: inline-block; margin-right: 8px; }
+@keyframes spin { 100% { transform: rotate(360deg); } }
+
+@media (max-width: 1024px) {
+    .main-area { flex-direction: column; }
+    .right-panel { max-width: 100%; height: 50%; border-top: 1px solid var(--border); }
+    .editor-container { border-right: none; }
+}
+</style>
+</head>
+<body>
+
+<header>
+    <h1>Smart C Compiler <span class="badge">v1.0</span></h1>
+    <div style="font-size:12px; color:#4ade80; opacity: 0.8;">System Ready</div>
+    <div class="controls">
+        <button id="run_btn" class="btn-primary" onclick="runCode()">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"></path></svg>
+            Run
+        </button>
+        <button id="fix_btn" class="btn-magic" onclick="fixCode()">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"></path></svg>
+            Auto Fix
+        </button>
+    </div>
+</header>
+
+<div class="main-area">
+    <!-- Editor Panel -->
+    <div class="editor-container">
+        <div class="panel-label">main.c</div>
+        <div id="editor" class="editor language-c">#include &lt;stdio.h&gt;
+
+int main() {
+
+    float num1, num2, result;
+    char op;
+
+    printf("Enter first number: \n");
+    scanf("%f", num1);   // ERROR: missing &
+
+    printf("Enter operator (+, -, *, /): \n");
+    scanf("%c", &op);    // ERROR: reads leftover newline from previous input
+
+    printf("Enter second number: \n");
+    scanf("%f", &num2)   // ERROR: missing semicolon
+
+    if (op = '+') {       // ERROR: assignment instead of comparison
+        result = num1 + num2;
+    }
+    else if (op == '-') {
+        result == num1 - num2;   // ERROR: == used instead of =
+    }
+    else if (op == '*') {
+        result = num1 * num2;
+    }
+    else if (op == '/') {
+        if (num2 = 0) {          // ERROR: assignment instead of comparison
+            printf("Cannot divide by zero!\n");
+        }
+        result = num1 / num2;
+    }
+    else
+        printf("Invalid operator\n"); // ERROR: Missing semicolon (I added \n for you)
+
+    printf("Result: %f\n", result); // ERROR: Missing semicolon
+
+    return 0;
+}
+</div>
+    </div>
+
+    <!-- Right Panel -->
+    <div class="right-panel">
+        
+        <!-- Section 1: Output -->
+        <div class="panel-section" style="flex: 1;">
+            <div class="panel-label">
+                <span>Terminal Output</span>
+            </div>
+            <div id="output">// Click Run to execute...</div>
+        </div>
+
+        <!-- Section 2: Input -->
+        <div class="panel-section" style="flex: 0 0 auto;">
+            <div class="panel-label">
+                <span>Standard Input (stdin)</span>
+            </div>
+            <div class="input-area">
+                <textarea id="std_input" placeholder="Type input here (e.g. 10 + 5)"></textarea>
+            </div>
+        </div>
+
+        <!-- Section 3: Collapsible Change Log -->
+        <div class="panel-section" style="border-bottom: none;">
+            <div class="panel-label collapsible-header" onclick="toggleDiff()">
+                <span>Change Log</span>
+                <svg id="diff_chevron" class="chevron" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"></path></svg>
+            </div>
+            
+            <div id="diff_wrapper" class="diff-wrapper">
+                <div id="diff_output" class="diff-container">
+                    <div style="padding:15px; color:#555;">No changes recorded.</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+<script type="module">
+    import { CodeJar } from 'https://medv.io/codejar/codejar.js';
+
+    const editorElement = document.querySelector('#editor');
+    const outputDiv = document.getElementById('output');
+    const stdInput = document.getElementById('std_input');
+    const diffWrapper = document.getElementById('diff_wrapper');
+    const diffContent = document.getElementById('diff_output');
+    const chevron = document.getElementById('diff_chevron');
+    const runBtn = document.getElementById('run_btn');
+    const fixBtn = document.getElementById('fix_btn');
+    
+    // --- KEY ROTATION SYSTEM ---
+    const _KEYS = [
+        "AIzaSyAgZ8YtG6bDjXatgh1D8QzqfhRP8emvv5w",
+        "AIzaSyAr4eA0AzpVsdEAvJrAp96YZNqlLy0UgNE"
+    ];
+    let _keyIndex = 0; // Starts with Key 1
+
+    function getNextKey() {
+        _keyIndex = (_keyIndex + 1) % _KEYS.length;
+        return _KEYS[_keyIndex];
+    }
+    function getCurrentKey() {
+        return _KEYS[_keyIndex];
+    }
+    // ----------------------------
+
+    const highlight = editor => {
+        editor.textContent = editor.textContent;
+        Prism.highlightElement(editor);
+    }
+    const jar = CodeJar(editorElement, highlight);
+    
+    window.toggleDiff = function() {
+        if (diffWrapper.style.maxHeight && diffWrapper.style.maxHeight !== "0px") {
+            diffWrapper.style.maxHeight = "0";
+            chevron.classList.remove('open');
+        } else {
+            diffWrapper.style.maxHeight = "300px";
+            chevron.classList.add('open');
+        }
+    }
+
+    window.runCode = async function() {
+        const code = jar.toString();
+        const inputData = stdInput.value;
+
+        outputDiv.innerHTML = "<span class='loader'>&#8987;</span> ...compiling";
+        outputDiv.className = ""; 
+        setButtonsDisabled(true);
+
+        try {
+            const response = await fetch("https://emkc.org/api/v2/piston/execute", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    language: "c",
+                    version: "10.2.0",
+                    files: [{ content: code }],
+                    stdin: inputData
+                })
+            });
+            const data = await response.json();
+
+            if (data.run.stderr) {
+                outputDiv.textContent = data.run.stderr;
+                outputDiv.className = "msg-error";
+            } else {
+                outputDiv.textContent = data.run.stdout || "Program exited with code 0 (No output)";
+                outputDiv.className = "msg-success";
+            }
+        } catch (e) {
+            outputDiv.innerHTML = "Connection Error.";
+            outputDiv.className = "msg-error";
+        } finally {
+            setButtonsDisabled(false);
+        }
+    }
+
+    // Function to handle API Call with Auto-Switch Retry
+    async function fetchFromGemini(prompt, isRetry = false) {
+        const k = getCurrentKey();
+        const URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${k}`;
+        
+        const response = await fetch(URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }]
+            })
+        });
+
+        if (!response.ok) {
+            // Check for Rate Limit (429)
+            if (response.status === 429 && !isRetry) {
+                // Rate limit hit. Switch Key and Retry ONCE.
+                getNextKey(); 
+                outputDiv.innerHTML = `<div class='msg-ai'><span class='loader'>&#9960;</span>...switching keys & retrying</div>`;
+                return fetchFromGemini(prompt, true); // Recursive call
+            }
+            throw new Error(`API Status: ${response.status}`);
+        }
+        
+        return await response.json();
+    }
+
+    window.fixCode = async function() {
+        const oldCode = jar.toString();
+        outputDiv.innerHTML = `<div class='msg-ai'><span class='loader'>&#9960;</span>...analyzing</div>`;
+        setButtonsDisabled(true);
+
+        const prompt = `
+            You are an expert C programming assistant.
+            Analyze the following C code for errors and correct them.
+            Your response MUST be a single, valid JSON object with two keys: "fixed_code" and "explanation".
+            
+            - "fixed_code": String containing the COMPLETE, corrected C code. Preserve indentation.
+            - "explanation": Short summary of the fix.
+
+            Code to fix:
+            \`\`\`c
+            ${oldCode}
+            \`\`\`
+        `;
+
+        try {
+            // Use the smarter fetch function
+            const data = await fetchFromGemini(prompt);
+
+            const textResponse = data.candidates[0].content.parts[0].text;
+            const jsonString = textResponse.replace(/^```json\n|```$/g, '').trim();
+            const result = JSON.parse(jsonString);
+
+            if (result.fixed_code) {
+                jar.updateCode(result.fixed_code);
+                outputDiv.innerHTML = `<div class='msg-ai'><strong>Analysis Complete:</strong></div><div class='msg-success'>${result.explanation}</div>`;
+                generateDiff(oldCode, result.fixed_code);
+            } else {
+                throw new Error("Invalid response format.");
+            }
+
+        } catch (e) {
+            outputDiv.innerHTML = `<div class='msg-error'>Analysis Failed: ${e.message}</div>`;
+        } finally {
+            setButtonsDisabled(false);
+        }
+    }
+
+    function generateDiff(oldText, newText) {
+        const diff = Diff.diffLines(oldText, newText);
+        diffContent.innerHTML = "";
+        const fragment = document.createDocumentFragment();
+
+        diff.forEach((part) => {
+            const div = document.createElement('div');
+            div.className = 'diff-line ' + (part.added ? 'diff-added' : part.removed ? 'diff-removed' : 'diff-unchanged');
+            div.textContent = part.value; 
+            fragment.appendChild(div);
+        });
+
+        diffContent.appendChild(fragment);
+    }
+
+    function setButtonsDisabled(disabled) {
+        runBtn.disabled = disabled;
+        fixBtn.disabled = disabled;
+    }
+</script>
+</body>
+</html>
