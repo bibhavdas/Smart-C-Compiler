@@ -301,24 +301,6 @@ int main() {
     const runBtn = document.getElementById('run_btn');
     const fixBtn = document.getElementById('fix_btn');
     
-    // --- KEY ROTATION SYSTEM (4 Keys) ---
-    const _KEYS = [
-        "AIzaSyAgZ8YtG6bDjXatgh1D8QzqfhRP8emvv5w",
-        "AIzaSyAr4eA0AzpVsdEAvJrAp96YZNqlLy0UgNE",
-        "AIzaSyCC3AmWWXYVoKah1KVejgYK3dDg0q_yTcI",
-        "AIzaSyCzrlET6gzDWGWvlVaQAtQpvi7OVheUWZI"
-    ];
-    let _keyIndex = 0; 
-
-    function getNextKey() {
-        _keyIndex = (_keyIndex + 1) % _KEYS.length;
-        return _KEYS[_keyIndex];
-    }
-    function getCurrentKey() {
-        return _KEYS[_keyIndex];
-    }
-    // ----------------------------
-
     const highlight = editor => {
         editor.textContent = editor.textContent;
         Prism.highlightElement(editor);
@@ -371,32 +353,18 @@ int main() {
         }
     }
 
-    // Function to handle API Call with Multi-Key Rotation
-    async function fetchFromGemini(prompt, retryCount = 0) {
-        const k = getCurrentKey();
-        
-        // Using Gemini 2.5 Flash as requested
-        const URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${k}`;
-        
-        const response = await fetch(URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }]
-            })
+    // Function to handle API Call via Worker
+    async function fetchFromGemini(prompt) {
+        const response = await fetch("https://geminiapikey.bibhavrd.workers.dev/", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt })
         });
 
         if (!response.ok) {
-            // Check for 429 (Quota) OR 403 (Permission)
-            // It will keep cycling through keys until it hits the limit of the array length
-            if ((response.status === 429 || response.status === 403) && retryCount < _KEYS.length) {
-                getNextKey(); 
-                outputDiv.innerHTML = `<div class='msg-ai'><span class='loader'>&#9960;</span>...error ${response.status}. switching to key ${_keyIndex + 1} & retrying</div>`;
-                return fetchFromGemini(prompt, retryCount + 1); // Recursive call
-            }
-            throw new Error(`API Status: ${response.status} (Model: 2.5-Flash)`);
+            throw new Error(`AI Error ${response.status}`);
         }
-        
+
         return await response.json();
     }
 
@@ -422,6 +390,7 @@ int main() {
         try {
             const data = await fetchFromGemini(prompt);
 
+            // Assuming the worker proxies the response structure correctly
             const textResponse = data.candidates[0].content.parts[0].text;
             const jsonString = textResponse.replace(/^```json\n|```$/g, '').trim();
             const result = JSON.parse(jsonString);
